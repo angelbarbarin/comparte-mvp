@@ -38,7 +38,7 @@
 - [ ] El video sigue [`GUION_VIDEO.md`](GUION_VIDEO.md) y abre en una ventana de incógnito.
 - [ ] Sustituyeron `VIDEO_URL` y `REPO_URL` por las ligas reales.
 - [ ] El repositorio es accesible para el profesor.
-- [ ] No hay claves ni datos personales en el historial (`git log -p | findstr /i "sk-ant-"` no debe encontrar nada).
+- [ ] No hay claves ni datos personales en el historial (`git log -p | findstr /i "sk-ant-"` solo debe aparecer esta misma línea).
 
 ## Preguntas probables
 
