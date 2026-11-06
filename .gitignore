@@ -1,0 +1,16 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Base SQLite local (solo la carpeta de la raíz)
+/data/
+
+.env
+.idea/
+.vscode/
+.claude/
+.DS_Store
+Thumbs.db
+~$*.docx
