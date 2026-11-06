@@ -4,7 +4,7 @@
 |---|---|---|---|
 | 1 | Video de la demo con el proyecto funcionando | ⏳ Por grabar | Instrucciones en [`GUION_VIDEO.md`](GUION_VIDEO.md) |
 | 2 | Entrada de texto describiendo el entregable | ✅ Borrador abajo | Sección siguiente |
-| 3 | Liga al Git con código y documentación | ⏳ `REPO_URL` | Repositorio de GitHub |
+| 3 | Liga al Git con código y documentación | ✅ | <https://github.com/angelbarbarin/comparte-mvp> |
 
 ## Entrada de texto (lista para pegar)
 
@@ -30,13 +30,13 @@
 >
 > **Siguientes pasos hasta el 24 de noviembre:** incorporar un LLM al Captador, diagramas UML, video con todos los casos de uso, validación con un banco de alimentos y autenticación por roles.
 >
-> **Video:** `VIDEO_URL` · **Código y documentación:** `REPO_URL`
+> **Video:** `VIDEO_URL` · **Código y documentación:** <https://github.com/angelbarbarin/comparte-mvp>
 
 ## Lista de verificación
 
 - [ ] `pytest` pasa y el README funciona en otra computadora siguiendo solo sus instrucciones.
 - [ ] El video sigue [`GUION_VIDEO.md`](GUION_VIDEO.md) y abre en una ventana de incógnito.
-- [ ] Sustituyeron `VIDEO_URL` y `REPO_URL` por las ligas reales.
+- [ ] Sustituyeron `VIDEO_URL` por la liga real del video.
 - [ ] El repositorio es accesible para el profesor.
 - [ ] No hay claves ni datos personales en el historial (`git log -p | findstr /i "sk-ant-"` solo debe aparecer esta misma línea).
 
