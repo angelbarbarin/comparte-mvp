@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ComParte · Rescate de alimentos con agentes</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header class="cabecera">
+    <div><h1>ComParte</h1><p>Rescate de alimentos con agentes · ODS 2 Hambre cero</p></div>
+    <div id="estado-app" class="estado-app"></div>
+  </header>
+  <nav class="pestanas" aria-label="Secciones">
+    <a href="#donar">Donar</a>
+    <a href="#seguimiento">Seguimiento</a>
+    <a href="#operacion">Operación</a>
+    <a href="#impacto">Impacto</a>
+  </nav>
+  <p class="aviso">Modo demostración: datos simulados y sin inicio de sesión; cada pestaña te deja “actuar como” donante, receptor, voluntario o administrador.</p>
+  <main>
+    <section id="vista-donar" hidden></section>
+    <section id="vista-seguimiento" hidden></section>
+    <section id="vista-operacion" hidden></section>
+    <section id="vista-impacto" hidden></section>
+  </main>
+  <div id="avisos" class="avisos" role="status" aria-live="polite"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
