@@ -38,7 +38,7 @@ Requisitos: Python 3.11 o superior (probado con 3.13). Funciona sin internet y s
 ```
 
 Abre <http://127.0.0.1:8000>. El script crea el entorno virtual, instala dependencias, recarga los datos de prueba, fija la hora de la aplicación
-a las 16:00 (así la demo no depende de la hora real) y arranca el servidor. Para grabar el video: [`docs/GUION_VIDEO.md`](docs/GUION_VIDEO.md).
+a las 16:00 (así la demo no depende de la hora real) y arranca el servidor.
 
 <details>
 <summary>Instalación manual</summary>
@@ -73,7 +73,7 @@ comparte/
   datos.py         piloto simulado del AMG
 web/               interfaz (HTML + CSS + JavaScript, sin compilación)
 tests/             pruebas
-docs/              alcance, arquitectura, guion del video y entrega
+docs/              alcance, arquitectura
 scripts/           arranque de la demo
 ```
 
