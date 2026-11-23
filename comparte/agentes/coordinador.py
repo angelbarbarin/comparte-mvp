@@ -9,24 +9,34 @@ puntaje desglosado y el motivo de cada descarte.
 2. Puntaje 0-100 = 40 % necesidad + 30 % cercanía + 30 % capacidad (``PESOS``). La necesidad pondera los
    kg que el receptor necesita según su prioridad (1 a 3) por categoría de alimento.
 
-Limitaciones del MVP: una donación va a un solo receptor; no hay tiempo límite de respuesta ni
-componente de equidad entre receptores (pendientes en el plan del equipo).
+3. La oferta vence a los ``VIGENCIA_OFERTA_MIN`` minutos. Una oferta vencida deja de apartar capacidad aunque
+   nadie la haya expirado todavía, y ``Orquestador.expirar_vencidas`` la pasa al siguiente receptor.
+
+Las respuestas se aplican con ``transicionar`` (``UPDATE ... WHERE estado = :esperado``): con un doble clic solo
+la primera cuenta y la segunda recibe un 409.
+
+Limitaciones del MVP: una donación va a un solo receptor y no hay componente de equidad entre receptores.
 """
 
 from datetime import datetime, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..conocimiento import distancia_km, minutos
 from ..modelos import Donacion, Estado, Receptor
-from .base import avisar_donante, evento
+from .base import avisar_donante, evento, transicionar
 
 NOMBRE = "coordinador"
 PESOS = {"necesidad": 0.4, "cercania": 0.3, "capacidad": 0.3}
 PREPARACION_MIN = 20  # minutos asumidos hasta que el voluntario recoge
 MARGEN_MIN = 30  # la entrega debe llegar al menos 30 min antes de caducar
 DISTANCIA_MAX_KM = 30.0
+VIGENCIA_OFERTA_MIN = 15  # minutos que tiene el receptor para responder
+
+
+def oferta_vigente(d: Donacion, ahora: datetime) -> bool:
+    return d.oferta_vence_en is None or d.oferta_vence_en > ahora
 
 
 def _comprometido_hoy(db: Session, r: Receptor, ahora: datetime, solo_frio: bool) -> float:
@@ -35,7 +45,7 @@ def _comprometido_hoy(db: Session, r: Receptor, ahora: datetime, solo_frio: bool
     donaciones = db.scalars(select(Donacion).where(Donacion.receptor_id == r.id)).all()
     total = 0.0
     for d in donaciones:
-        reservado = d.estado == Estado.OFRECIDA
+        reservado = d.estado == Estado.OFRECIDA and oferta_vigente(d, ahora)  # una oferta vencida ya no aparta
         asignado = d.estado in Estado.COMPROMETIDOS and d.asignada_en and d.asignada_en >= inicio
         if (reservado or asignado) and (d.requiere_frio or not solo_frio):
             total += d.total_kg
@@ -83,12 +93,13 @@ def ofrecer(db: Session, d: Donacion, ahora: datetime) -> None:
     d.evaluacion = candidatos
     viables = [c for c in candidatos if c["viable"]]
     if not viables:
-        d.estado, d.receptor_id = Estado.SIN_RECEPTOR, None
+        d.estado, d.receptor_id, d.oferta_vence_en = Estado.SIN_RECEPTOR, None, None
         evento(db, d.id, NOMBRE, "Ningún receptor es viable para esta donación.")
         avisar_donante(db, d, NOMBRE, "Por ahora no encontré un receptor que pueda recibir tu donación a tiempo.")
         return
     mejor = viables[0]
     d.receptor_id, d.estado = mejor["receptor_id"], Estado.OFRECIDA
+    d.oferta_vence_en = ahora + timedelta(minutes=VIGENCIA_OFERTA_MIN)
     d.receptor = db.get(Receptor, mejor["receptor_id"])
     c = mejor["componentes"]
     evento(db, d.id, NOMBRE,
@@ -97,15 +108,42 @@ def ofrecer(db: Session, d: Donacion, ahora: datetime) -> None:
     avisar_donante(db, d, NOMBRE, f"Ofrecí tu donación a {mejor['nombre']}. Te aviso cuando responda.")
 
 
-def responder(db: Session, d: Donacion, aceptar: bool, ahora: datetime) -> None:
+def _condiciones(d: Donacion, ahora: datetime) -> tuple:
+    """La oferta sigue siendo para el mismo receptor y no ha vencido (se revisa en el mismo UPDATE)."""
+    return (Donacion.receptor_id == d.receptor_id,
+            or_(Donacion.oferta_vence_en.is_(None), Donacion.oferta_vence_en > ahora))
+
+
+def responder(db: Session, d: Donacion, aceptar: bool, ahora: datetime, receptor_id: int | None = None) -> None:
+    """Respuesta del receptor a la oferta. ``receptor_id`` (opcional) es quien responde: si no es el receptor
+    ofrecido, se rechaza la petición (la API con roles lo pasa)."""
     if d.estado != Estado.OFRECIDA:
         raise ValueError(f"La donación #{d.id} no está ofrecida ({d.estado})")
-    nombre = d.receptor.nombre
+    if receptor_id is not None and receptor_id != d.receptor_id:
+        raise ValueError(f"La oferta de la donación #{d.id} es para otro receptor")
+    if not oferta_vigente(d, ahora):
+        raise ValueError(f"La oferta de la donación #{d.id} venció a las {d.oferta_vence_en:%H:%M}")
+    rid, nombre = d.receptor_id, d.receptor.nombre
     if aceptar:
-        d.estado, d.asignada_en = Estado.ASIGNADA, ahora
+        transicionar(db, d, Estado.OFRECIDA, {"estado": Estado.ASIGNADA, "asignada_en": ahora, "oferta_vence_en": None},
+                     *_condiciones(d, ahora))
         evento(db, d.id, NOMBRE, f"{nombre} aceptó la donación.")
         avisar_donante(db, d, NOMBRE, f"{nombre} aceptó tu donación. Ahora busco quién la recoja.")
     else:
-        d.rechazos_receptores = [*d.rechazos_receptores, d.receptor_id]
-        d.receptor_id, d.receptor = None, None
+        transicionar(db, d, Estado.OFRECIDA, {"estado": Estado.REGISTRADA, "receptor_id": None, "oferta_vence_en": None},
+                     *_condiciones(d, ahora))
+        d.rechazos_receptores = [*d.rechazos_receptores, rid]
         evento(db, d.id, NOMBRE, f"{nombre} rechazó la donación.")
+
+
+def expirar(db: Session, d: Donacion, ahora: datetime) -> bool:
+    """Retira una oferta vencida y anota al receptor como si hubiera rechazado. False si alguien se adelantó."""
+    rid, nombre = d.receptor_id, d.receptor.nombre if d.receptor else "el receptor"
+    try:
+        transicionar(db, d, Estado.OFRECIDA, {"estado": Estado.REGISTRADA, "receptor_id": None, "oferta_vence_en": None},
+                     Donacion.receptor_id == rid, Donacion.oferta_vence_en <= ahora)
+    except ValueError:
+        return False
+    d.rechazos_receptores = [*d.rechazos_receptores, rid]
+    evento(db, d.id, NOMBRE, f"La oferta a {nombre} venció sin respuesta ({VIGENCIA_OFERTA_MIN} min).")
+    return True
