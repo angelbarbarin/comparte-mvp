@@ -14,9 +14,9 @@ class Estado:
     REGISTRADA = "registrada"
     PENDIENTE_VALIDACION = "pendiente_validacion"  # alimento de riesgo: espera a una persona
     RECHAZADA = "rechazada"  # la persona revisora la rechazó
-    OFRECIDA = "ofrecida"  # propuesta a un receptor
+    OFRECIDA = "ofrecida"  # propuesta a un receptor (vence a los coordinador.VIGENCIA_OFERTA_MIN minutos)
     SIN_RECEPTOR = "sin_receptor"
-    ASIGNADA = "asignada"  # el receptor aceptó; propuesta a un voluntario
+    ASIGNADA = "asignada"  # el receptor aceptó; propuesta a un voluntario (vence a los logistico.VIGENCIA_PROPUESTA_MIN)
     SIN_VOLUNTARIO = "sin_voluntario"
     EN_RECOLECCION = "en_recoleccion"  # el voluntario aceptó
     EN_CAMINO = "en_camino"  # el voluntario ya la recogió
@@ -73,6 +73,11 @@ class Conversacion(Base):
     donante_id: Mapped[int] = mapped_column(ForeignKey("donantes.id"), unique=True)
     mensajes: Mapped[list] = mapped_column(JSON, default=list)
     borrador: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Bloqueo optimista: cada UPDATE exige la versión leída. Si dos mensajes llegan a la vez (doble "sí"), el
+    # segundo falla con StaleDataError en lugar de registrar la donación dos veces.
+    version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    __mapper_args__ = {"version_id_col": version}
 
 
 class Donacion(Base):
@@ -94,6 +99,8 @@ class Donacion(Base):
     kg_recibidos: Mapped[float | None] = mapped_column(Float, nullable=True)
     creada_en: Mapped[datetime] = mapped_column(DateTime)
     asignada_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    oferta_vence_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # límite para que el receptor responda
+    propuesta_vence_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # límite para el voluntario
     completada_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     donante: Mapped[Donante] = relationship()

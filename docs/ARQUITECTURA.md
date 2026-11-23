@@ -47,10 +47,10 @@ stateDiagram-v2
   registrada --> ofrecida: sin riesgo
   pendiente_validacion --> ofrecida: una persona aprueba
   pendiente_validacion --> rechazada: una persona rechaza
-  ofrecida --> ofrecida: el receptor rechaza, se reasigna
+  ofrecida --> ofrecida: el receptor rechaza o la oferta vence (15 min), se reasigna
   ofrecida --> asignada: el receptor acepta
   ofrecida --> sin_receptor: ninguno viable
-  asignada --> asignada: el voluntario rechaza, se reasigna
+  asignada --> asignada: el voluntario rechaza o la propuesta vence (15 min), se reasigna
   asignada --> en_recoleccion: el voluntario acepta
   asignada --> sin_voluntario: ninguno viable
   en_recoleccion --> en_camino: recogida
@@ -59,6 +59,12 @@ stateDiagram-v2
   completada --> [*]
   rechazada --> [*]
 ```
+
+Cada flecha es un cambio **atómico**: `UPDATE donaciones SET estado = :nuevo WHERE id = :id AND estado = :esperado`
+(`agentes/base.py`, `transicionar`). Si la donación ya cambió (doble clic, dos pestañas, oferta vencida), el `UPDATE` no
+afecta ninguna fila y la API responde 409. Las ofertas (`oferta_vence_en`) y las propuestas a voluntarios
+(`propuesta_vence_en`) vencen a los 15 minutos; mientras están vencidas ya no apartan capacidad ni voluntario, y
+`Orquestador.expirar_vencidas()` las pasa al siguiente candidato (se ejecuta al inicio de cada operación que cambia el estado).
 
 ## Secuencia del rescate
 
@@ -147,8 +153,12 @@ classDiagram
 | Decisiones explicables | El ranking, los motivos de descarte y la bitácora quedan guardados | Más datos por donación |
 | Supervisión humana en riesgo | Restricción ética del documento de visión | Una persona es cuello de botella |
 | Reloj controlable | Pruebas deterministas y demo a cualquier hora | Usar `reloj.ahora()`, no `datetime.now()` |
+| Transiciones atómicas (`UPDATE ... WHERE estado = :esperado`) | Con un doble clic la donación avanzaba dos veces y el impacto se podía registrar doble (retroalimentación del profesor) | Toda transición pasa por `transicionar`; solo quien gana el `UPDATE` escribe eventos y avisos |
+| Ofertas y propuestas con tiempo límite (15 min) | Una oferta sin respuesta apartaba la capacidad del receptor para siempre | Columnas nuevas: una base creada antes requiere `--reiniciar` |
+| Bloqueo optimista en la conversación (`Conversacion.version`) | Un doble "sí" podía registrar la donación dos veces | El segundo mensaje recibe un 409 y hay que reenviarlo |
 
 ## Pendientes (siguiente ciclo)
 
-LLM en el Captador (y fotos), tiempos límite y reasignación automática, autenticación por roles, alta y verificación de
+LLM en el Captador (y fotos), autenticación por roles (los métodos del orquestador ya aceptan `receptor_id` y
+`voluntario_id` para verificar quién responde), alta y verificación de
 receptores, equidad en la asignación, API de mapas, PostgreSQL, validación con un banco de alimentos real y los UML finales.
