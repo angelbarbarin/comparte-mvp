@@ -81,11 +81,14 @@ vencida), 409.
   python -m comparte
   ```
 
+Las ofertas a receptores y las propuestas a voluntarios vencen a los 15 minutos; un ciclo en segundo plano las pasa al siguiente candidato
+cada 30 s (también al consultar `GET /api/donaciones`).
+
 ## Pruebas
 
 ```bash
 pip install -r requirements-dev.txt
-pytest        # 106 pruebas, pocos segundos, sin red ni claves
+pytest        # 108 pruebas, pocos segundos, sin red ni claves
 ```
 
 ## Estructura

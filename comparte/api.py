@@ -8,6 +8,9 @@ Nota técnica: este módulo no usa ``from __future__ import annotations`` para q
 las dependencias.
 """
 
+import asyncio
+import contextlib
+import logging
 import os
 from typing import Literal
 
@@ -64,8 +67,15 @@ def _donacion(db: Session, d: Donacion, detalle: bool = False) -> dict:
     return datos
 
 
-def crear_app(url: str | None = None, hora_demo: str | None = None, servir_web: bool = True, modo_demo: bool = False) -> FastAPI:
-    """``modo_demo`` (o ``COMPARTE_DEMO=1``) acepta los tokens ``demo-*`` y registra ``POST /api/demo/reiniciar``."""
+log = logging.getLogger("comparte")
+
+
+def crear_app(url: str | None = None, hora_demo: str | None = None, servir_web: bool = True, modo_demo: bool = False,
+              intervalo_vencimientos: float = 30) -> FastAPI:
+    """``modo_demo`` (o ``COMPARTE_DEMO=1``) acepta los tokens ``demo-*`` y registra ``POST /api/demo/reiniciar``.
+
+    ``intervalo_vencimientos``: cada cuántos segundos un ciclo en segundo plano retira las ofertas y propuestas vencidas.
+    """
     modo_demo = modo_demo or os.getenv("COMPARTE_DEMO") == "1"
     tokens = cargar_tokens()
     motor = crear_motor(url)
@@ -76,7 +86,31 @@ def crear_app(url: str | None = None, hora_demo: str | None = None, servir_web: 
     with fabrica() as db:
         sembrar(db)
 
-    app = FastAPI(title="ComParte API (MVP)",
+    def expirar_una_vez() -> int:
+        with fabrica() as db:
+            return Orquestador(db).expirar_vencidas()
+
+    async def vigilar_vencimientos():
+        while True:
+            await asyncio.sleep(intervalo_vencimientos)
+            try:
+                n = expirar_una_vez()
+                if n:
+                    log.info("Expiraron %s ofertas o propuestas", n)
+            except Exception:  # noqa: BLE001  (el ciclo no debe morir por un error puntual)
+                log.exception("No se pudieron expirar las ofertas vencidas")
+
+    @contextlib.asynccontextmanager
+    async def ciclo_de_vida(_: FastAPI):
+        tarea = asyncio.create_task(vigilar_vencimientos())
+        try:
+            yield
+        finally:
+            tarea.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await tarea
+
+    app = FastAPI(title="ComParte API (MVP)", lifespan=ciclo_de_vida,
                   description="Agentes: Captador, Coordinador, Logístico e Impacto, coordinados por un orquestador. "
                               "Las acciones piden la cabecera X-Comparte-Token.")
     app.state.modo_demo = modo_demo
@@ -166,10 +200,12 @@ def crear_app(url: str | None = None, hora_demo: str | None = None, servir_web: 
     # ----------------------------------------------------------------------------------- donaciones
     @app.get("/api/donaciones")
     def listar(db: Session = Depends(get_db)):
+        Orquestador(db).expirar_vencidas()
         return [_donacion(db, d) for d in db.scalars(select(Donacion).order_by(Donacion.id.desc()))]
 
     @app.get("/api/donaciones/{donacion_id}")
     def ver(donacion_id: int, db: Session = Depends(get_db)):
+        Orquestador(db).expirar_vencidas()
         return _donacion(db, donacion(db, donacion_id), detalle=True)
 
     # Las acciones revisan el rol (requiere) y que el actor sea el dueño de la donación (exigir_propiedad). La transición

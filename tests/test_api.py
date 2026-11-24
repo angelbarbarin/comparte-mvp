@@ -3,11 +3,15 @@
 El cliente corre en modo demo y cada petición manda el token del actor que la hace, igual que la interfaz.
 """
 
+from datetime import datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 
+from comparte import reloj
 from comparte.api import crear_app
 
+HORA = datetime(2026, 11, 10, 16, 0)  # la misma de conftest.py
 
 ADMIN = {"X-Comparte-Token": "demo-admin"}
 
@@ -97,3 +101,30 @@ def test_nueva_conversacion_y_reinicio(c):
     assert c.post("/api/demo/reiniciar", headers=ADMIN).status_code == 200
     assert c.get("/api/donaciones").json() == []
 
+
+def test_la_oferta_vencida_pasa_a_otro_receptor(c):
+    did = donar(c)
+    primero = receptor_de(c, did)
+    reloj.congelar(HORA + timedelta(minutes=16))
+    d = c.get(f"/api/donaciones/{did}").json()  # la consulta expira las ofertas vencidas
+    assert d["estado"] == "ofrecida" and d["receptor"]["id"] != primero
+    assert any("venció" in e["resumen"] for e in d["eventos"])
+    # el primer receptor ya no puede responder: su oferta venció (409, no 403)
+    tarde = c.post(f"/api/donaciones/{did}/receptor", json={"aceptar": True}, headers=como("receptor", primero))
+    assert tarde.status_code == 409 and "ya no está a tu nombre" in tarde.json()["detail"]
+
+
+def test_ciclo_en_segundo_plano_expira_sin_peticiones(monkeypatch):
+    import time
+
+    from comparte.orquestador import Orquestador
+
+    llamadas = []
+    original = Orquestador.expirar_vencidas
+    monkeypatch.setattr(Orquestador, "expirar_vencidas", lambda self: llamadas.append(1) or original(self))
+    with TestClient(crear_app(url="sqlite://", servir_web=False, modo_demo=True, intervalo_vencimientos=0.05)):
+        time.sleep(0.4)  # sin ninguna petición: solo el ciclo la llama
+        assert len(llamadas) >= 2
+    n = len(llamadas)
+    time.sleep(0.2)
+    assert len(llamadas) == n  # al apagar la app el ciclo se detiene

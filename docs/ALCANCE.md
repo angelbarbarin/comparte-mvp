@@ -40,7 +40,8 @@ Donante (chat) → Captador → [revisión humana si hay riesgo] → Coordinador
   donación (401 sin token, 403 si no corresponde). No hay contraseñas, JWT ni alta de usuarios: los tokens se configuran en `COMPARTE_TOKENS`.
   En modo demo (`--demo`) la interfaz usa tokens de prueba para "actuar como" cualquiera.
 - Sin API de mapas: distancia = línea recta × 1.3 y 25 km/h.
-- Sin tiempos límite de respuesta: una oferta espera hasta que el receptor responde.
+- Las ofertas y propuestas vencen a los 15 min: si el receptor o el voluntario no responde, pasan al siguiente candidato
+  (un ciclo en segundo plano lo revisa cada 30 s).
 - Una donación se asigna a un solo receptor y un solo voluntario; sin componente de equidad entre receptores.
 - Sin PostgreSQL (SQLite; se cambia con `COMPARTE_DB_URL`) ni despliegue.
 
@@ -62,7 +63,7 @@ Cumple el piloto prometido en el documento de visión (≥ 10 donantes y ≥ 5 r
 
 ## Verificación
 
-- `pytest`: 106 pruebas (conocimiento, comprensión de lenguaje, agentes, concurrencia, flujos completos, API, permisos y principios de
+- `pytest`: 108 pruebas (conocimiento, comprensión de lenguaje, agentes, concurrencia, flujos completos, API, permisos y principios de
   voz del Captador). GitHub Actions las corre en cada push y PR con Python 3.11 y 3.13.
 - Recorrido manual en el navegador integrado (Chromium): rescate completo con rechazo y reasignación, alimento de
   riesgo con aprobación humana y tablero de impacto. A 375 px de ancho **no** se probó esta versión.
