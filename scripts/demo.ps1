@@ -4,7 +4,8 @@
 #   .\scripts\demo.ps1 -Hora 15:30 -Puerto 8080
 #
 # Crea el entorno virtual si no existe, instala dependencias, recarga los datos de prueba, fija la hora
-# de la aplicación (el video no depende de la hora real) y arranca el servidor.
+# de la aplicación (el video no depende de la hora real) y arranca el servidor en modo demostración (--demo):
+# tokens de prueba para "actuar como" cualquiera y el botón de reiniciar datos.
 # Si la carpeta está en OneDrive, define $env:COMPARTE_VENV con una ruta fuera de OneDrive.
 
 param([string]$Hora = "16:00", [int]$Puerto = 8000)
@@ -18,4 +19,4 @@ $python = Join-Path $venv "Scripts\python.exe"
 & $python -m pip install --quiet -r requirements.txt
 
 Write-Host "Abre http://127.0.0.1:$Puerto  (Ctrl+C para detener)"
-& $python -m comparte --puerto $Puerto --hora-demo $Hora --reiniciar
+& $python -m comparte --demo --puerto $Puerto --hora-demo $Hora --reiniciar
