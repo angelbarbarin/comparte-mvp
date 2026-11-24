@@ -1,5 +1,6 @@
 // Interfaz de ComParte (MVP): JavaScript sin dependencias ni compilación, salvo Leaflet para el mapa.
 // Todo texto entra como nodo de texto (nunca innerHTML con datos): un mensaje con HTML no puede inyectar código.
+// Cada acción manda el token del usuario de prueba con el que "actúa" la pestaña (cabecera X-Comparte-Token).
 'use strict';
 
 // ---------------------------------------------------------------------------------- utilidades
@@ -19,15 +20,52 @@ function el(tag, props, ...hijos) {
 }
 function llenar(nodo, ...hijos) { nodo.replaceChildren(); nodo.append(...hijos.flat(Infinity).filter((h) => h !== null && h !== undefined && h !== false).map((h) => (h instanceof Node ? h : document.createTextNode(String(h))))); return nodo; }
 
-async function api(metodo, ruta, cuerpo) {
-  const r = await fetch('/api' + ruta, { method: metodo, headers: cuerpo === undefined ? {} : { 'Content-Type': 'application/json' }, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
+// Tokens de prueba (solo valen con el servidor en modo demo: python -m comparte --demo).
+const TOKEN = {
+  admin: 'demo-admin',
+  donante: (id) => `demo-donante-${id}`,
+  receptor: (id) => `demo-receptor-${id}`,
+  voluntario: (id) => `demo-voluntario-${id}`,
+};
+const sinPunto = (t) => String(t).replace(/[.\s]+$/, '');
+function mensajeDeError(estado, detalle) {
+  if (estado === 401) return 'No reconocí al usuario de prueba de esta pestaña. Recarga la página; si sigue igual, arranca el servidor con --demo.';
+  if (estado === 403) { const d = sinPunto(detalle || 'le toca a otro usuario'); return `Esa acción no te corresponde: ${d.charAt(0).toLowerCase()}${d.slice(1)}.`; }
+  if (estado === 409) return `${sinPunto(detalle || 'Esta oferta ya fue respondida o venció')}. Ya actualicé la vista.`;
+  return detalle || 'Los datos enviados no son válidos';
+}
+async function api(metodo, ruta, cuerpo, token) {
+  const headers = {};
+  if (cuerpo !== undefined) headers['Content-Type'] = 'application/json';
+  if (token) headers['X-Comparte-Token'] = token;
+  const r = await fetch('/api' + ruta, { method: metodo, headers, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
   let datos = null;
   try { datos = await r.json(); } catch (e) { /* sin cuerpo */ }
-  if (!r.ok) throw new Error(datos && typeof datos.detail === 'string' ? datos.detail : 'Los datos enviados no son válidos');
+  if (!r.ok) {
+    const error = new Error(mensajeDeError(r.status, datos && typeof datos.detail === 'string' ? datos.detail : null));
+    error.estado = r.status;
+    throw error;
+  }
   return datos;
 }
-const GET = (ruta) => api('GET', ruta);
-const POST = (ruta, cuerpo = {}) => api('POST', ruta, cuerpo);
+const GET = (ruta, token) => api('GET', ruta, undefined, token);
+const POST = (ruta, cuerpo = {}, token) => api('POST', ruta, cuerpo, token);
+
+// Evita el doble clic: mientras una petición está en curso se desactivan los botones de su tarjeta (o formulario)
+// y no se repite la misma ruta. El servidor también lo impide (409), pero así ni siquiera se envía.
+const enVuelo = new Set();
+async function sinDobleClic(ev, clave, trabajo) {
+  if (enVuelo.has(clave)) return undefined;
+  const origen = ev && ev.currentTarget instanceof Element ? ev.currentTarget : null;  // se lee antes del primer await
+  const zona = origen ? origen.closest('.tarea, form, .fila') || origen : null;
+  const botones = zona ? [...zona.querySelectorAll('button')].concat(zona.matches('button') ? [zona] : []) : [];
+  enVuelo.add(clave);
+  for (const b of botones) { b.disabled = true; b.setAttribute('aria-busy', 'true'); }
+  try { return await trabajo(); } finally {
+    enVuelo.delete(clave);
+    for (const b of botones) { b.disabled = false; b.removeAttribute('aria-busy'); }
+  }
+}
 
 function aviso(texto, tipo = '') {
   const n = el('div', { class: tipo }, texto);
@@ -69,7 +107,7 @@ function pasos(d) {
     nombres.map((n, k) => el('li', { class: k < activo ? 'hecho' : k === activo ? (fallo ? 'fallo' : 'activo') : '' }, n)));
 }
 
-const ctx = { donantes: [], receptores: [], voluntarios: [], pesos: {} };
+const ctx = { donantes: [], receptores: [], voluntarios: [], pesos: {}, modoDemo: true };
 let donaciones = [];
 
 // ------------------------------------------------------------------------------------------ Donar
@@ -111,16 +149,23 @@ const Donar = (() => {
     ev.preventDefault();
     const texto = entrada.value.trim();
     if (!texto) return;
-    try {
-      const r = await POST(`/chat/${donanteId}`, { texto });
-      entrada.value = '';
-      pintarChat(r.mensajes);
-      if (r.donacion_id) aviso(`Donación #${r.donacion_id} registrada. Sigue su avance en “Seguimiento”.`, 'ok');
-      await cargarDonaciones();
-      pintarPanel();
-    } catch (e) { aviso(e.message, 'error'); }
+    await sinDobleClic({ currentTarget: ev.currentTarget }, `chat-${donanteId}`, async () => {
+      entrada.readOnly = true;
+      try {
+        const r = await POST(`/chat/${donanteId}`, { texto }, TOKEN.donante(donanteId));
+        entrada.value = '';
+        pintarChat(r.mensajes);
+        if (r.donacion_id) aviso(`Donación #${r.donacion_id} registrada. Sigue su avance en “Seguimiento”.`, 'ok');
+        await cargarDonaciones();
+        pintarPanel();
+      } catch (e) { aviso(e.message, 'error'); } finally { entrada.readOnly = false; entrada.focus(); }
+    });
   }
-  async function nueva() { pintarChat((await POST(`/chat/${donanteId}/nueva`)).mensajes); }
+  async function nueva(ev) {
+    await sinDobleClic(ev, `chat-${donanteId}`, async () => {
+      try { pintarChat((await POST(`/chat/${donanteId}/nueva`, {}, TOKEN.donante(donanteId))).mensajes); } catch (e) { aviso(e.message, 'error'); }
+    });
+  }
   function pintarChat(lista) {
     pintar('chat', lista, (ms) => {
       const abajo = mensajes.scrollHeight - mensajes.scrollTop - mensajes.clientHeight < 80;
@@ -146,7 +191,7 @@ const Donar = (() => {
       firmas.clear();
       await this.refrescar();
     },
-    async refrescar() { await cargarDonaciones(); pintarChat((await GET(`/chat/${donanteId}`)).mensajes); pintarPanel(); },
+    async refrescar() { await cargarDonaciones(); pintarChat((await GET(`/chat/${donanteId}`, TOKEN.donante(donanteId))).mensajes); pintarPanel(); },
   };
 })();
 
@@ -245,10 +290,13 @@ const Operacion = (() => {
       el('div', { class: 'tarjeta' }, el('h2', null, 'Voluntario'), el('label', null, 'Actuar como'), selVol, cVol)),
     el('div', { class: 'tarjeta' }, el('h2', null, 'Administrador'), cAdm)));
 
-  async function accion(ruta, cuerpo, ok) {
-    try { await POST(ruta, cuerpo); aviso(ok, 'ok'); } catch (e) { aviso(e.message, 'error'); }
-    firmas.clear();
-    await Operacion.refrescar();
+  // token: el usuario con el que actúa cada tarjeta (receptor o voluntario elegido, o el administrador).
+  function accion(ruta, cuerpo, ok, token) {
+    return (ev) => sinDobleClic(ev, ruta, async () => {
+      try { await POST(ruta, cuerpo, token); aviso(ok, 'ok'); } catch (e) { aviso(e.message, 'error'); }
+      firmas.clear();
+      await Operacion.refrescar();
+    });
   }
   const boton = (t, fn, clase = '') => el('button', { class: `boton ${clase}`, type: 'button', onclick: fn }, t);
   const tarea = (titulo, d, ...extra) => el('div', { class: 'tarea' }, el('div', { class: 'fila entre' }, el('b', null, titulo), chipEstado(d.estado)),
@@ -261,12 +309,12 @@ const Operacion = (() => {
     llenar(cRec,
       el('h3', { style: 'margin-top:.8rem' }, 'Ofertas por responder'),
       ofertas.length ? ofertas.map((d) => tarea(`Oferta · donación #${d.id}`, d, el('p', { class: 'sub' }, `Caduca ${d.caduca_en.replace('T', ' ')}`),
-        el('div', { class: 'fila' }, boton('Aceptar', () => accion(`/donaciones/${d.id}/receptor`, { aceptar: true }, 'Aceptaste la donación. El Logístico buscará quién la recoja.'), 'primario'),
-          boton('Rechazar', () => accion(`/donaciones/${d.id}/receptor`, { aceptar: false }, 'Rechazaste la oferta; el Coordinador buscará otro receptor.'), 'peligro')))) : el('p', { class: 'vacio' }, 'Sin ofertas por ahora.'),
+        el('div', { class: 'fila' }, boton('Aceptar', accion(`/donaciones/${d.id}/receptor`, { aceptar: true }, 'Aceptaste la donación. El Logístico buscará quién la recoja.', TOKEN.receptor(recId)), 'primario'),
+          boton('Rechazar', accion(`/donaciones/${d.id}/receptor`, { aceptar: false }, 'Rechazaste la oferta; el Coordinador buscará otro receptor.', TOKEN.receptor(recId)), 'peligro')))) : el('p', { class: 'vacio' }, 'Sin ofertas por ahora.'),
       el('h3', { style: 'margin-top:.8rem' }, 'Por confirmar recepción'),
       porConfirmar.length ? porConfirmar.map((d) => { const entrada = el('input', { type: 'number', min: '0.1', step: '0.1', value: d.total_kg, 'aria-label': 'Kilos realmente recibidos' });
         return tarea(`Donación #${d.id} entregada`, d, el('div', { class: 'fila' }, el('div', { class: 'campo' }, el('label', null, 'Kilos que recibiste (corrígelos si difieren)'), entrada),
-          boton('Confirmar recepción', () => accion(`/donaciones/${d.id}/confirmacion`, { kg_recibidos: Number(entrada.value) || null }, 'Recepción confirmada. El Agente de Impacto registró el rescate.'), 'primario'))); })
+          boton('Confirmar recepción', (ev) => accion(`/donaciones/${d.id}/confirmacion`, { kg_recibidos: Number(entrada.value) || null }, 'Recepción confirmada. El Agente de Impacto registró el rescate.', TOKEN.receptor(recId))(ev), 'primario'))); })
         : el('p', { class: 'vacio' }, 'Nada pendiente.'),
       caminoHacia.length ? [el('h3', { style: 'margin-top:.8rem' }, 'En camino hacia ti'), caminoHacia.map((d) => tarea(`Donación #${d.id}`, d))] : null);
   }
@@ -278,12 +326,12 @@ const Operacion = (() => {
     llenar(cVol,
       el('h3', { style: 'margin-top:.8rem' }, 'Propuestas de recolección'),
       propuestas.length ? propuestas.map((d) => tarea(`Propuesta · donación #${d.id}`, d, ruta(d), el('div', { class: 'fila' },
-        boton('Aceptar recolección', () => accion(`/donaciones/${d.id}/voluntario`, { aceptar: true }, 'Recolección aceptada. El donante ya fue avisado.'), 'primario'),
-        boton('Rechazar', () => accion(`/donaciones/${d.id}/voluntario`, { aceptar: false }, 'Rechazaste; el Logístico buscará otro voluntario.'), 'peligro')))) : el('p', { class: 'vacio' }, 'Sin propuestas.'),
+        boton('Aceptar recolección', accion(`/donaciones/${d.id}/voluntario`, { aceptar: true }, 'Recolección aceptada. El donante ya fue avisado.', TOKEN.voluntario(volId)), 'primario'),
+        boton('Rechazar', accion(`/donaciones/${d.id}/voluntario`, { aceptar: false }, 'Rechazaste; el Logístico buscará otro voluntario.', TOKEN.voluntario(volId)), 'peligro')))) : el('p', { class: 'vacio' }, 'Sin propuestas.'),
       el('h3', { style: 'margin-top:.8rem' }, 'Mis recolecciones activas'),
       mias.filter((d) => ['en_recoleccion', 'en_camino'].includes(d.estado)).map((d) => tarea(`Donación #${d.id}`, d, ruta(d),
-        d.estado === 'en_recoleccion' ? boton('Ya recogí con el donante', () => accion(`/donaciones/${d.id}/avance`, { estado: 'recogida' }, 'Registrado: ya recogiste la donación.'), 'primario')
-          : boton('Ya entregué en el receptor', () => accion(`/donaciones/${d.id}/avance`, { estado: 'entregada' }, 'Registrado: entregaste. Falta que el receptor confirme.'), 'primario'))));
+        d.estado === 'en_recoleccion' ? boton('Ya recogí con el donante', accion(`/donaciones/${d.id}/avance`, { estado: 'recogida' }, 'Registrado: ya recogiste la donación.', TOKEN.voluntario(volId)), 'primario')
+          : boton('Ya entregué en el receptor', accion(`/donaciones/${d.id}/avance`, { estado: 'entregada' }, 'Registrado: entregaste. Falta que el receptor confirme.', TOKEN.voluntario(volId)), 'primario'))));
   }
   function pintarAdmin() {
     const porValidar = donaciones.filter((d) => d.estado === 'pendiente_validacion');
@@ -292,15 +340,19 @@ const Operacion = (() => {
       el('h3', null, 'Alimentos de riesgo por validar'),
       el('p', { class: 'sub', style: 'margin-bottom:.5rem' }, 'Carnes, lácteos y comida preparada no avanzan sin que una persona los apruebe.'),
       porValidar.length ? porValidar.map((d) => tarea(`Donación #${d.id}`, d, d.requiere_frio ? el('span', { class: 'chip info' }, 'Requiere cadena de frío') : null,
-        el('div', { class: 'fila' }, boton('Aprobar', () => accion(`/donaciones/${d.id}/revision`, { aceptar: true }, 'Aprobada: el Coordinador ya busca receptor.'), 'primario'),
-          boton('Rechazar', () => accion(`/donaciones/${d.id}/revision`, { aceptar: false }, 'Rechazada; se avisó al donante.'), 'peligro')))) : el('p', { class: 'vacio' }, 'Nada por validar.'),
+        el('div', { class: 'fila' }, boton('Aprobar', accion(`/donaciones/${d.id}/revision`, { aceptar: true }, 'Aprobada: el Coordinador ya busca receptor.', TOKEN.admin), 'primario'),
+          boton('Rechazar', accion(`/donaciones/${d.id}/revision`, { aceptar: false }, 'Rechazada; se avisó al donante.', TOKEN.admin), 'peligro')))) : el('p', { class: 'vacio' }, 'Nada por validar.'),
       atoradas.length ? [el('h3', { style: 'margin-top:1rem' }, 'Donaciones atoradas'), atoradas.map((d) => tarea(`Donación #${d.id}`, d, el('p', { class: 'sub' }, 'No hay receptor o voluntario viable. Revisa el detalle en “Seguimiento”.')))] : null,
-      el('h3', { style: 'margin-top:1rem' }, 'Controles de la demostración'),
-      el('p', { class: 'sub', style: 'margin-bottom:.5rem' }, 'Borra las donaciones y conversaciones y recarga los datos de prueba.'),
-      boton('Reiniciar datos de demo', async () => {
-        if (!confirm('Se borrarán todas las donaciones y conversaciones. ¿Continuar?')) return;
-        await POST('/demo/reiniciar'); firmas.clear(); await cargarDonaciones(); aviso('Datos de demostración recargados.', 'ok'); await Operacion.refrescar();
-      }, 'peligro'));
+      ctx.modoDemo ? [
+        el('h3', { style: 'margin-top:1rem' }, 'Controles de la demostración'),
+        el('p', { class: 'sub', style: 'margin-bottom:.5rem' }, 'Borra las donaciones y conversaciones y recarga los datos de prueba.'),
+        boton('Reiniciar datos de demo', (ev) => {
+          if (!confirm('Se borrarán todas las donaciones y conversaciones. ¿Continuar?')) return undefined;
+          return sinDobleClic(ev, '/demo/reiniciar', async () => {
+            try { await POST('/demo/reiniciar', {}, TOKEN.admin); aviso('Datos de demostración recargados.', 'ok'); } catch (e) { aviso(e.message, 'error'); }
+            firmas.clear(); await cargarDonaciones(); await Operacion.refrescar();
+          });
+        }, 'peligro')] : null);
   }
   return {
     async activar() {
@@ -368,7 +420,12 @@ async function activar(nombre, param) {
 async function actualizarEstado() {
   const e = await GET('/estado');
   ctx.pesos = e.pesos;
-  llenar(document.getElementById('estado-app'), el('span', null, e.reloj_de_demo ? 'Hora de demo: ' : 'Hora: ', el('b', null, e.hora.slice(11, 16))), el('span', null, 'Datos de demostración'));
+  ctx.modoDemo = e.modo_demo;
+  llenar(document.getElementById('estado-app'), el('span', null, e.reloj_de_demo ? 'Hora de demo: ' : 'Hora: ', el('b', null, e.hora.slice(11, 16))),
+    el('span', null, e.modo_demo ? 'Modo demostración' : 'Modo normal'));
+  const nota = document.querySelector('.aviso');
+  if (nota) nota.textContent = e.modo_demo ? 'Modo demostración: cada pestaña actúa con un usuario de prueba.'
+    : 'El servidor no está en modo demostración: los usuarios de prueba no tienen permisos. Arráncalo con python -m comparte --demo.';
 }
 async function iniciar() {
   try {
