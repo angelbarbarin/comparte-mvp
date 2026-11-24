@@ -18,7 +18,7 @@ Donante (chat) → Captador → [revisión humana si hay riesgo] → Coordinador
 
 | Característica | Estado | Alcance en este MVP |
 |---|---|---|
-| CP-01 Registro conversacional | ✅ | Chat web en español; entiende cantidades, unidades, caducidad y alimento en mal estado; pregunta lo que falta y confirma antes de registrar |
+| CP-01 Registro conversacional | ✅ | Chat web en español; entiende cantidades, unidades, caducidad y alimento en mal estado; pregunta lo que falta y confirma antes de registrar. Mensajes con principios de diseño de voz: una pregunta por turno, ejemplos, recuperación progresiva de errores y salida con «corregir», «cancelar» o «empezar de nuevo» |
 | CP-02 Inocuidad | ✅ | Bloquea alcohol, medicamentos y alimentos en mal estado; carnes, lácteos y comida preparada esperan la aprobación de una persona |
 | CP-03 Perfil de receptores | 🟡 | Perfil en la base (necesidades, capacidad, frío, horario). Se carga con datos de prueba; **no hay formulario de alta ni verificación de organizaciones** |
 | CP-04 Asignación | ✅ | Puntaje explicable (necesidad, cercanía, capacidad), filtros con motivo y reasignación si rechaza |
@@ -26,7 +26,7 @@ Donante (chat) → Captador → [revisión humana si hay riesgo] → Coordinador
 | CP-06 Trazabilidad | ✅ | Estados de la donación, avisos al donante y bitácora de decisiones por agente |
 | CP-07 Tablero de impacto | 🟡 | kg, raciones, personas y CO2e, por alimento y por municipio. **Sin gráficas históricas ni historial simulado** |
 | CP-08 Reportes | ⛔ | No incluido |
-| CP-09 Administración | 🟡 | Solo aprobar/rechazar alimentos de riesgo y reiniciar datos de demo |
+| CP-09 Administración | 🟡 | Rol admin por token: aprueba o rechaza alimentos de riesgo y, solo en modo demo, reinicia los datos. Sin panel de usuarios ni de tokens |
 | CP-10 Notificaciones | ⛔ | Excluida en el documento de visión para esta versión |
 
 ## Qué NO incluye (a propósito)
@@ -35,7 +35,10 @@ Donante (chat) → Captador → [revisión humana si hay riesgo] → Coordinador
   español es por expresiones regulares y un catálogo de alimentos. Es gratis, reproducible y funciona sin internet,
   pero entiende solo un subconjunto del idioma. **Sustituir `comparte/nlu.py` por un LLM es el siguiente paso**
   (misma salida: `Interpretacion`).
-- Sin fotos, sin WhatsApp, sin autenticación ni roles (cualquiera "actúa como" cualquier usuario).
+- Sin fotos ni WhatsApp.
+- **Roles por token, no un login real.** Cada acción exige un rol (donante, receptor, voluntario o admin) y, si aplica, ser el dueño de la
+  donación (401 sin token, 403 si no corresponde). No hay contraseñas, JWT ni alta de usuarios: los tokens se configuran en `COMPARTE_TOKENS`.
+  En modo demo (`--demo`) la interfaz usa tokens de prueba para "actuar como" cualquiera.
 - Sin API de mapas: distancia = línea recta × 1.3 y 25 km/h.
 - Sin tiempos límite de respuesta: una oferta espera hasta que el receptor responde.
 - Una donación se asigna a un solo receptor y un solo voluntario; sin componente de equidad entre receptores.
@@ -59,7 +62,8 @@ Cumple el piloto prometido en el documento de visión (≥ 10 donantes y ≥ 5 r
 
 ## Verificación
 
-- `pytest`: 68 pruebas (conocimiento, comprensión de lenguaje, agentes, flujos completos y API).
+- `pytest`: 106 pruebas (conocimiento, comprensión de lenguaje, agentes, concurrencia, flujos completos, API, permisos y principios de
+  voz del Captador). GitHub Actions las corre en cada push y PR con Python 3.11 y 3.13.
 - Recorrido manual en el navegador integrado (Chromium): rescate completo con rechazo y reasignación, alimento de
   riesgo con aprobación humana y tablero de impacto. A 375 px de ancho **no** se probó esta versión.
 - **No verificado:** Safari/Firefox, `scripts/demo.sh` (macOS/Linux), rendimiento, y cualquier cifra con datos o usuarios reales.
@@ -67,5 +71,5 @@ Cumple el piloto prometido en el documento de visión (≥ 10 donantes y ≥ 5 r
 
 ## Qué sigue
 
-Ver el final de [`ARQUITECTURA.md`](ARQUITECTURA.md): LLM en el Captador, tiempos límite, autenticación, WhatsApp
+Ver el final de [`ARQUITECTURA.md`](ARQUITECTURA.md): LLM en el Captador, inicio de sesión real, WhatsApp
 o el canal que se decida, validación con un banco de alimentos real y los diagramas UML finales.
