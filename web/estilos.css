@@ -31,6 +31,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1rem; }
 .boton { cursor: pointer; padding: .45rem .9rem; border-radius: 10px; border: 1px solid var(--borde); background: #fff; font-weight: 600; min-height: 38px; }
 .boton.primario { background: var(--verde); border-color: var(--verde); color: #fff; }
 .boton.peligro { color: #a3254f; border-color: #e3b5c4; }
+.boton:disabled { opacity: .55; cursor: progress; }
 select, input[type=text], input[type=number] { width: 100%; padding: .45rem .6rem; border: 1px solid #b9c5bd; border-radius: 10px; min-height: 38px; }
 label { display: block; font-size: .8rem; font-weight: 600; color: var(--suave); margin-bottom: .15rem; }
 .fila { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; }

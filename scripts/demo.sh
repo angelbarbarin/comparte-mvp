@@ -6,4 +6,4 @@ VENV="${COMPARTE_VENV:-.venv}"
 [ -d "$VENV" ] || python3 -m venv "$VENV"
 "$VENV/bin/python" -m pip install --quiet -r requirements.txt
 echo "Abre http://127.0.0.1:${PUERTO:-8000}  (Ctrl+C para detener)"
-exec "$VENV/bin/python" -m comparte --puerto "${PUERTO:-8000}" --hora-demo "${HORA:-16:00}" --reiniciar
+exec "$VENV/bin/python" -m comparte --demo --puerto "${PUERTO:-8000}" --hora-demo "${HORA:-16:00}" --reiniciar
