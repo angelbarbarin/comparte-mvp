@@ -1,32 +1,14 @@
 # Arquitectura
 
-Borradores en Mermaid (GitHub los dibuja) para los diagramas de la entrega del 24 de noviembre. Reflejan el código.
+Cómo está hecho ComParte por dentro. Los cuatro diagramas UML formales (casos de uso, componentes, clases y secuencia)
+están en [`DIAGRAMAS_UML.md`](DIAGRAMAS_UML.md); aquí quedan el resumen, los estados y las decisiones de diseño.
 
 ## Componentes
 
 Los cuatro agentes y el orquestador son componentes separados. Los agentes **no se llaman entre sí**: el orquestador decide
 quién actúa según el estado de la donación.
 
-```mermaid
-flowchart TB
-  WEB["Chat web"] --> API["API REST /api"]
-  API --> ORQ["Orquestador"]
-  ORQ --> CAP["Agente Captador"]
-  ORQ --> COO["Agente Coordinador"]
-  ORQ --> LOG["Agente Logistico"]
-  ORQ --> IMP["Agente de Impacto"]
-  CAP --> NLU["Comprension de lenguaje por reglas"]
-  CAP --> CON["Conocimiento: catalogo, inocuidad, factores"]
-  COO --> CON
-  LOG --> CON
-  IMP --> CON
-  ORQ --> DB[("SQLite")]
-  CAP --> DB
-  COO --> DB
-  LOG --> DB
-  IMP --> DB
-  WEB -. "mosaicos del mapa" .-> OSM["OpenStreetMap"]
-```
+![Diagrama de componentes](diagramas/componentes.svg)
 
 | Componente | Módulo |
 |---|---|
@@ -35,6 +17,7 @@ flowchart TB
 | Comprensión de lenguaje | `comparte/nlu.py` |
 | Catálogo, inocuidad, factores y distancias | `comparte/conocimiento.py` |
 | API | `comparte/api.py` |
+| Autenticación por roles | `comparte/auth.py` |
 | Modelo de datos | `comparte/modelos.py` |
 | Interfaz | `web/` |
 
@@ -66,82 +49,10 @@ afecta ninguna fila y la API responde 409. Las ofertas (`oferta_vence_en`) y las
 (`propuesta_vence_en`) vencen a los 15 minutos; mientras están vencidas ya no apartan capacidad ni voluntario, y
 `Orquestador.expirar_vencidas()` las pasa al siguiente candidato (se ejecuta al inicio de cada operación que cambia el estado).
 
-## Secuencia del rescate
+## Secuencia del rescate y clases
 
-```mermaid
-sequenceDiagram
-  actor D as Donante
-  participant O as Orquestador
-  participant CA as Captador
-  participant CO as Coordinador
-  participant L as Logistico
-  participant I as Impacto
-  actor R as Receptor
-  actor V as Voluntario
-
-  D->>O: describe su excedente
-  O->>CA: procesar mensaje
-  CA-->>D: resumen y pide confirmar
-  D->>O: "si"
-  CA-->>O: donacion registrada
-  O->>CO: ofrecer
-  CO-->>R: oferta con puntaje y justificacion
-  R->>O: aceptar
-  O->>L: proponer recoleccion
-  L-->>V: propuesta con ruta
-  V->>O: aceptar, recogida, entregada
-  R->>O: confirmar recepcion con kg reales
-  O->>I: registrar impacto
-  I-->>D: constancia de impacto
-```
-
-## Clases del dominio
-
-```mermaid
-classDiagram
-  class Donante {
-    nombre
-    giro
-    municipio
-  }
-  class Receptor {
-    nombre
-    necesidades
-    capacidad_diaria_kg
-    capacidad_frio_kg
-    horario_cierre
-  }
-  class Voluntario {
-    nombre
-    vehiculo
-    capacidad_kg
-    tiene_hielera
-  }
-  class Conversacion {
-    mensajes
-    borrador
-  }
-  class Donacion {
-    estado
-    items
-    total_kg
-    requiere_frio
-    requiere_revision
-    caduca_en
-    evaluacion
-    ruta
-  }
-  class Evento {
-    agente
-    resumen
-    creado_en
-  }
-  Donante "1" --> "1" Conversacion
-  Donante "1" --> "*" Donacion
-  Donacion "*" --> "0..1" Receptor
-  Donacion "*" --> "0..1" Voluntario
-  Donacion "1" --> "*" Evento
-```
+Ver el [diagrama de secuencia](DIAGRAMAS_UML.md#4-diagrama-de-secuencia) y el
+[diagrama de clases](DIAGRAMAS_UML.md#3-diagrama-de-clases).
 
 ## Decisiones de diseño
 
@@ -156,9 +67,9 @@ classDiagram
 | Transiciones atómicas (`UPDATE ... WHERE estado = :esperado`) | Con un doble clic la donación avanzaba dos veces y el impacto se podía registrar doble (retroalimentación del profesor) | Toda transición pasa por `transicionar`; solo quien gana el `UPDATE` escribe eventos y avisos |
 | Ofertas y propuestas con tiempo límite (15 min) | Una oferta sin respuesta apartaba la capacidad del receptor para siempre | Columnas nuevas: una base creada antes requiere `--reiniciar` |
 | Bloqueo optimista en la conversación (`Conversacion.version`) | Un doble "sí" podía registrar la donación dos veces | El segundo mensaje recibe un 409 y hay que reenviarlo |
+| Roles por token con un `Depends` (`auth.py`) y modo demo explícito | Cualquiera podía aprobar, aceptar o borrar la base con `/api/demo/reiniciar` (retroalimentación del profesor) | No es un login real: los tokens se configuran en `COMPARTE_TOKENS` |
 
 ## Pendientes (siguiente ciclo)
 
-LLM en el Captador (y fotos), autenticación por roles (los métodos del orquestador ya aceptan `receptor_id` y
-`voluntario_id` para verificar quién responde), alta y verificación de
-receptores, equidad en la asignación, API de mapas, PostgreSQL, validación con un banco de alimentos real y los UML finales.
+LLM en el Captador (y fotos), inicio de sesión real, alta y verificación de receptores, equidad en la asignación, API de
+mapas, PostgreSQL y validación con un banco de alimentos real.

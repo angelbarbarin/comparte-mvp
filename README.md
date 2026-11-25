@@ -19,7 +19,8 @@ Desarrollo Sustentable de *Diseño de Software* (ITESO, otoño 2026) · **ODS 2:
 | **Orquestador** | Los enruta, pide revisión humana y registra cada decisión | [`comparte/orquestador.py`](comparte/orquestador.py) |
 
 La interfaz muestra el puntaje desglosado, el motivo de cada descarte y una línea de tiempo con cada decisión. El canal es un **chat web**
-(plan B ante el costo de WhatsApp Business). Diagramas en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
+(plan B ante el costo de WhatsApp Business). Diagramas UML (casos de uso, componentes, clases y secuencia) en
+[`docs/DIAGRAMAS_UML.md`](docs/DIAGRAMAS_UML.md); arquitectura y decisiones en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
 
 ## Probarlo
 
@@ -105,7 +106,7 @@ comparte/
   datos.py         piloto simulado del AMG
 web/               interfaz (HTML + CSS + JavaScript, sin compilación)
 tests/             pruebas
-docs/              alcance, arquitectura
+docs/              alcance, arquitectura, diagramas UML (docs/diagramas/)
 scripts/           arranque de la demo
 ```
 

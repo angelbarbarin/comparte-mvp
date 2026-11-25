@@ -1,0 +1,56 @@
+---
+title: Diagrama de secuencia · rescate completo de una donación
+---
+sequenceDiagram
+  autonumber
+  actor D as Donante
+  actor A as Administrador
+  actor R as Receptor
+  actor V as Voluntario
+  participant API as API REST
+  participant O as Orquestador
+  participant CA as Captador
+  participant CO as Coordinador
+  participant L as Logístico
+  participant I as Impacto
+
+  Note over D,API: Cada petición lleva X-Comparte-Token. La API revisa el rol (401 / 403) antes de llamar al orquestador.
+
+  D->>API: POST /chat "Tengo 25 kg de pan dulce"
+  API->>O: mensaje(donante, texto)
+  O->>CA: procesar(conversación, texto)
+  Note over CA: interpreta el texto y evalúa la inocuidad
+  CA-->>D: resumen y "¿La registro así o quieres corregir algo?"
+  D->>API: POST /chat "sí"
+  API->>O: mensaje(donante, "sí")
+  O->>CA: procesar()
+  CA-->>O: donación registrada
+
+  alt alimentos de riesgo (carne, lácteos, preparados)
+    O-->>A: queda pendiente de validación
+    A->>API: POST /revision (aprobar)
+    API->>O: revision(id, aprobar)
+  end
+
+  O->>CO: ofrecer(donación)
+  Note over CO: puntaje por necesidad, cercanía y capacidad
+  CO-->>R: oferta con puntaje y justificación (vence en 15 min)
+
+  alt el receptor no responde en 15 min
+    O->>CO: expirar_vencidas() reasigna al siguiente receptor
+  else el receptor acepta
+    R->>API: POST /receptor (aceptar)
+    API->>O: responder_receptor(id, aceptar, receptor_id)
+    Note over O: UPDATE ... WHERE estado = 'ofrecida'<br/>un doble clic recibe 409
+    O->>L: proponer(donación)
+    L-->>V: propuesta con ruta (vence en 15 min)
+  end
+
+  V->>API: POST /voluntario (aceptar)
+  API->>O: responder_voluntario()
+  V->>API: POST /avance recogida y luego entregada
+  API->>O: avanzar()
+  R->>API: POST /confirmacion (kg reales)
+  API->>O: confirmar(id, kg, receptor_id)
+  O->>I: registrar(donación)
+  I-->>D: constancia: kg rescatados, raciones y CO2e evitado
