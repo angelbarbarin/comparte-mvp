@@ -63,7 +63,7 @@ Cumple el piloto prometido en el documento de visión (≥ 10 donantes y ≥ 5 r
 
 ## Verificación
 
-- `pytest`: 108 pruebas (conocimiento, comprensión de lenguaje, agentes, concurrencia, flujos completos, API, permisos y principios de
+- `pytest`: 109 pruebas (conocimiento, comprensión de lenguaje, agentes, concurrencia, flujos completos, API, permisos y principios de
   voz del Captador). GitHub Actions las corre en cada push y PR con Python 3.11 y 3.13.
 - Recorrido manual en el navegador integrado (Chromium): rescate completo con rechazo y reasignación, alimento de
   riesgo con aprobación humana y tablero de impacto. A 375 px de ancho **no** se probó esta versión.

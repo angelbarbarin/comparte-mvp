@@ -252,6 +252,12 @@ def crear_app(url: str | None = None, hora_demo: str | None = None, servir_web: 
                 sembrar(db)
             return {"ok": True}
 
+    # Va al final: cualquier /api/... que no exista (por ejemplo /api/demo/reiniciar fuera del modo demo) da 404.
+    # Sin esto, la petición caería en los archivos de la interfaz, que a un POST le responden 405.
+    @app.api_route("/api/{ruta:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
+    def no_existe(ruta: str):
+        raise LookupError(f"No existe la ruta /api/{ruta}")
+
     if servir_web:
         app.mount("/", StaticFiles(directory=RAIZ / "web", html=True), name="web")
     return app

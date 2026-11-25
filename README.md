@@ -88,7 +88,7 @@ cada 30 s (también al consultar `GET /api/donaciones`).
 
 ```bash
 pip install -r requirements-dev.txt
-pytest        # 108 pruebas, pocos segundos, sin red ni claves
+pytest        # 109 pruebas, pocos segundos, sin red ni claves
 ```
 
 ## Estructura
