@@ -3,28 +3,45 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b1210">
   <title>ComParte · Rescate de alimentos con agentes</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233ddc84'/%3E%3Cstop offset='1' stop-color='%2319b6a0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' rx='11' fill='url(%23g)'/%3E%3Cpath d='M9 22a11 11 0 0 0 22 0Z' fill='%230b1210'/%3E%3Cpath d='M20 19c-1-5 2-9 8-10 0 6-3 9-8 10Z' fill='%230b1210'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
   <link rel="stylesheet" href="estilos.css">
 </head>
 <body>
   <header class="cabecera">
-    <div><h1>ComParte</h1><p>Rescate de alimentos con agentes · ODS 2 Hambre cero</p></div>
+    <a class="marca" href="#inicio" aria-label="ComParte, ir al inicio">
+      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+        <defs><linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ddc84"/><stop offset="1" stop-color="#19b6a0"/></linearGradient></defs>
+        <rect width="40" height="40" rx="11" fill="url(#logo-g)"/>
+        <path d="M9 22a11 11 0 0 0 22 0Z" fill="#0b1210"/>
+        <path d="M20 19c-1-5 2-9 8-10 0 6-3 9-8 10Z" fill="#0b1210"/>
+      </svg>
+      <span class="marca-texto"><b>Com<em>Parte</em></b><small>Rescate de alimentos con agentes</small></span>
+    </a>
+    <nav class="pestanas" aria-label="Secciones">
+      <a href="#inicio" data-icono="casa">Inicio</a>
+      <a href="#donar" data-icono="mensaje">Donar</a>
+      <a href="#seguimiento" data-icono="pin">Seguimiento</a>
+      <a href="#operacion" data-icono="portapapeles">Operación</a>
+      <a href="#impacto" data-icono="grafica">Impacto</a>
+    </nav>
     <div id="estado-app" class="estado-app"></div>
   </header>
-  <nav class="pestanas" aria-label="Secciones">
-    <a href="#donar">Donar</a>
-    <a href="#seguimiento">Seguimiento</a>
-    <a href="#operacion">Operación</a>
-    <a href="#impacto">Impacto</a>
-  </nav>
   <p class="aviso">Modo demostración: cada pestaña actúa con un usuario de prueba.</p>
   <main>
+    <section id="vista-inicio" hidden></section>
     <section id="vista-donar" hidden></section>
     <section id="vista-seguimiento" hidden></section>
     <section id="vista-operacion" hidden></section>
     <section id="vista-impacto" hidden></section>
   </main>
+  <footer class="pie">
+    <span><b>ComParte</b> · Hackathon de Desarrollo Sustentable · Diseño de Software</span>
+    <span class="ods">ODS 2 · Hambre cero</span>
+  </footer>
   <div id="avisos" class="avisos" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="app.js"></script>
