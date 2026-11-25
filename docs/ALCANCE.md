@@ -73,4 +73,4 @@ Cumple el piloto prometido en el documento de visión (≥ 10 donantes y ≥ 5 r
 ## Qué sigue
 
 Ver el final de [`ARQUITECTURA.md`](ARQUITECTURA.md): LLM en el Captador, inicio de sesión real, WhatsApp
-o el canal que se decida, validación con un banco de alimentos real y los diagramas UML finales.
+o el canal que se decida y validación con un banco de alimentos real. Los diagramas UML están en [`DIAGRAMAS_UML.md`](DIAGRAMAS_UML.md).

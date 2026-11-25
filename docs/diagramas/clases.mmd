@@ -1,0 +1,160 @@
+---
+title: Diagrama de clases
+---
+classDiagram
+  direction LR
+
+  namespace Dominio {
+    class Donante {
+      +int id
+      +str nombre
+      +str giro
+      +str municipio
+      +float lat
+      +float lon
+    }
+    class Receptor {
+      +int id
+      +str nombre
+      +str tipo
+      +str municipio
+      +str horario_cierre
+      +dict necesidades
+      +float capacidad_diaria_kg
+      +float capacidad_frio_kg
+    }
+    class Voluntario {
+      +int id
+      +str nombre
+      +str vehiculo
+      +float capacidad_kg
+      +bool tiene_hielera
+    }
+    class Conversacion {
+      +list mensajes
+      +dict borrador
+      +int version
+    }
+    class Donacion {
+      +str estado
+      +list items
+      +float total_kg
+      +bool requiere_frio
+      +bool requiere_revision
+      +datetime caduca_en
+      +list rechazos_receptores
+      +list rechazos_voluntarios
+      +list evaluacion
+      +dict ruta
+      +float kg_recibidos
+      +datetime oferta_vence_en
+      +datetime propuesta_vence_en
+    }
+    class Evento {
+      +str agente
+      +str resumen
+      +datetime creado_en
+    }
+    class Estado {
+      <<enumeration>>
+      REGISTRADA
+      PENDIENTE_VALIDACION
+      RECHAZADA
+      OFRECIDA
+      SIN_RECEPTOR
+      ASIGNADA
+      SIN_VOLUNTARIO
+      EN_RECOLECCION
+      EN_CAMINO
+      ENTREGADA
+      COMPLETADA
+    }
+  }
+
+  namespace Agentes {
+    class Orquestador {
+      +mensaje(donante_id, texto) Donacion
+      +revision(donacion_id, aprobar) Donacion
+      +responder_receptor(donacion_id, aceptar, receptor_id) Donacion
+      +responder_voluntario(donacion_id, aceptar, voluntario_id) Donacion
+      +avanzar(donacion_id, nuevo, voluntario_id) Donacion
+      +confirmar(donacion_id, kg_recibidos, receptor_id) Donacion
+      +expirar_vencidas() int
+    }
+    class Captador {
+      <<agente>>
+      +iniciar(donante_id) Conversacion
+      +procesar(conv, texto) Donacion
+    }
+    class Coordinador {
+      <<agente>>
+      +VIGENCIA_OFERTA_MIN = 15
+      +evaluar(donacion, ahora) list
+      +ofrecer(donacion, ahora)
+      +responder(donacion, aceptar, ahora, receptor_id)
+      +expirar(donacion, ahora) bool
+    }
+    class Logistico {
+      <<agente>>
+      +VIGENCIA_PROPUESTA_MIN = 15
+      +proponer(donacion, ahora)
+      +responder(donacion, aceptar, ahora, voluntario_id)
+      +avanzar(donacion, nuevo, ahora, voluntario_id)
+      +expirar(donacion, ahora) bool
+    }
+    class Impacto {
+      <<agente>>
+      +metricas(donacion) dict
+      +registrar(donacion, ahora) dict
+      +resumen() dict
+    }
+  }
+
+  namespace Servicios {
+    class Interpretacion {
+      +str intencion
+      +list~ItemDicho~ items
+      +datetime caduca_en
+      +bool mal_estado
+    }
+    class ItemDicho {
+      +str nombre
+      +str clave
+      +float cantidad
+      +str unidad
+    }
+    class Alimento {
+      +str clave
+      +str categoria
+      +str almacenamiento
+      +str riesgo
+      +float vida_util_horas
+      +float co2e_por_kg
+    }
+    class Evaluacion {
+      +bool bloqueada
+      +bool requiere_revision
+      +bool requiere_frio
+      +list motivos
+    }
+  }
+
+  Donante "1" -- "0..1" Conversacion : conversa
+  Donante "1" -- "*" Donacion : dona
+  Donacion "*" --> "0..1" Receptor : se asigna a
+  Donacion "*" --> "0..1" Voluntario : la recoge
+  Donacion "1" *-- "*" Evento : bitácora
+  Donacion ..> Estado
+  Interpretacion "1" *-- "*" ItemDicho
+
+  Orquestador --> Captador
+  Orquestador ..> Coordinador
+  Orquestador ..> Logistico
+  Orquestador ..> Impacto
+  Orquestador ..> Donacion : transiciones atómicas
+  Captador ..> Interpretacion : interpreta el mensaje
+  Captador ..> Evaluacion : evalúa inocuidad
+  Captador ..> Conversacion
+  Coordinador ..> Receptor : puntaje explicable
+  Logistico ..> Voluntario : elige y traza ruta
+  Interpretacion ..> Alimento
