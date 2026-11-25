@@ -53,12 +53,17 @@ def _actor(x, extra=()):
     return {"id": x.id, "nombre": x.nombre, **{k: getattr(x, k) for k in ("lat", "lon", *extra)}}
 
 
+def _iso(momento):
+    return momento.isoformat(timespec="minutes") if momento else None
+
+
 def _donacion(db: Session, d: Donacion, detalle: bool = False) -> dict:
     datos = {
         "id": d.id, "estado": d.estado, "items": d.items, "total_kg": d.total_kg,
         "requiere_frio": d.requiere_frio, "requiere_revision": d.requiere_revision, "caduca_en": d.caduca_en.isoformat(timespec="minutes"),
         "donante": _actor(d.donante, ("municipio",)), "receptor": _actor(d.receptor, ("municipio",)),
         "voluntario": _actor(d.voluntario, ("vehiculo",)), "ruta": d.ruta,
+        "oferta_vence_en": _iso(d.oferta_vence_en), "propuesta_vence_en": _iso(d.propuesta_vence_en),
     }
     if detalle:
         eventos = db.scalars(select(Evento).where(Evento.donacion_id == d.id).order_by(Evento.id))
