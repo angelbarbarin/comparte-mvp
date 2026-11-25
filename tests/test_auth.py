@@ -143,3 +143,17 @@ def test_cli_exige_demo_para_reiniciar(monkeypatch):
         with pytest.raises(SystemExit) as e:
             main(args)
         assert e.value.code == 2
+
+
+def test_reiniciar_da_404_con_la_interfaz_web(monkeypatch):
+    """Como en la PC: con la interfaz servida en "/", la ruta inexistente debe dar 404 y no 405."""
+    monkeypatch.delenv("COMPARTE_DEMO", raising=False)
+    with TestClient(crear_app(url="sqlite://")) as c:
+        r = c.post("/api/demo/reiniciar", headers=h("demo-admin"))
+        assert r.status_code == 404 and "No existe" in r.json()["detail"]
+        assert c.get("/api/no-existe").status_code == 404
+        assert c.get("/").status_code == 200  # la interfaz se sigue sirviendo
+        assert c.get("/api/estado").status_code == 200
+    with TestClient(crear_app(url="sqlite://", modo_demo=True)) as c:
+        assert c.post("/api/demo/reiniciar").status_code == 401
+        assert c.post("/api/demo/reiniciar", headers=h("demo-admin")).status_code == 200
